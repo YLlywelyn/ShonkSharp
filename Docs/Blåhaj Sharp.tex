@@ -1,0 +1,38 @@
+%!TeX Program = XeLatex
+\documentclass[a4paper,openany,oneside,nodeprecatedcode]{dndbook}
+
+\usepackage[singlelinecheck=false]{caption}
+\usepackage{lipsum}
+\usepackage{listings}
+\usepackage{shortvrb}
+\usepackage{stfloats}
+
+\captionsetup[table]{labelformat=empty,font={sf,sc,bf,},skip=0pt}
+
+\MakeShortVerb{|}
+
+\lstset{%
+  basicstyle=\ttfamily,
+  language=[LaTeX]{TeX},
+  breaklines=true,
+}
+
+\newcommand{\langname}{Blåhaj\#}
+
+\title{\langname{}}
+\author{Miss Ylva Llywelyn}
+\date{2023/10/14}
+
+\begin{document}
+
+\frontmatter
+
+\maketitle
+
+\tableofcontents
+
+\mainmatter%
+
+\include{chapters/grammer.tex}
+
+\end{document}
