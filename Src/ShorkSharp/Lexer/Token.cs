@@ -34,6 +34,10 @@ namespace ShorkSharp.Lexer
         LESS_THAN_OR_EQUAL,     // <=
         GREATER_THAN_OR_EQUAL,  // >=
         EQUALS_ARROW,           // =>
+        NOTEQUAL,               // !=
+
+        AND,    // &&
+        OR,     // ||
 
         LPAREN, // (
         RPAREN, // )
