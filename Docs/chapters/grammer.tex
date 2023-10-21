@@ -2,9 +2,15 @@
 %!TeX root = ../Shork Sharp.tex
 \chapter{Grammer}
 
-\begin{tabular}{rl}
-\textit{block}           & : LBRACE \textit{statement}+ RBRACE \\
-\textit{statement}    & : \textit{expr} SCOLON \\
+This is a notation for writing down the grammer of the language.  It uses regex syntax, with the components themselves being italicised.
 
-\textit{expr}            & : 
+\begin{tabular}{|r|l|}
+\hline
+\textit{block} & \{ \textit{statement}* \} \\\hline
+\textit{statement} & \textit{expression} ; \\\hline
+\textit{expression} & \\\hline
+
+\multirow{3}{*}{\textit{const-expresion}} & "[a-zA-Z0-9 ]*" \\
+ & [+-]?[0-9]+(\textbackslash{}.[0-9]+)? \\
+ & true\textbar false \\\hline
 \end{tabular}
