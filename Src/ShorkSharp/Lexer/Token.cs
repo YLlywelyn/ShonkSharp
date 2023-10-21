@@ -16,7 +16,9 @@ namespace ShorkSharp.Lexer
         STRING, // "[a-zA-Z \t]*"
 
         PLUS,           // +
+        DOUBLE_PLUS,    // ++
         MINUS,          // -
+        DOUBLE_MINUS,   // --
         SLASH,          // /
         ASTERIX,        // *
         AMPERSAND,      // &
