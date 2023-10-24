@@ -28,6 +28,11 @@ namespace ShorkSharp.Parser
         {
             this.token = token;
         }
+        
+        public override string ToString()
+        {
+            return string.Format("({0})", token);
+        }
     }
 
     internal class StringNode : Node
@@ -39,6 +44,11 @@ namespace ShorkSharp.Parser
         {
             this.token = token;
         }
+        
+        public override string ToString()
+        {
+            return string.Format("({0})", token);
+        }
     }
 
     internal class ListNode : Node
@@ -49,6 +59,11 @@ namespace ShorkSharp.Parser
             : base(startPosition, endPosition)
         {
             this.elements = elements;
+        }
+        
+        public override string ToString()
+        {
+            return string.Format("(LIST: {{{0}}})", elements.ToDelimitedString());
         }
     }
 
@@ -89,6 +104,11 @@ namespace ShorkSharp.Parser
             this.opToken = opToken;
             this.rightNode = rightNode;
         }
+        
+        public override string ToString()
+        {
+            return string.Format("({0} {1} {2})", leftNode, opToken, rightNode);
+        }
     }
 
     internal class UnaryOpNode : Node
@@ -101,6 +121,11 @@ namespace ShorkSharp.Parser
         {
             this.opToken = opToken;
             this.node = node;
+        }
+        
+        public override string ToString()
+        {
+            return string.Format("({0}{1})", opToken, node);
         }
     }
 

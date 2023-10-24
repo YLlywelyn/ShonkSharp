@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace ShorkSharp.Lexer
 {
+    [Flags]
     internal enum TokenType
     {
         Unknown,

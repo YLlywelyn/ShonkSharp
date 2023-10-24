@@ -18,7 +18,11 @@ namespace ShorkSharp
                 {
                     Lexer.Lexer lexer = new Lexer.Lexer(input);
                     List<Token> tokens = lexer.MakeTokens();
-                    Console.WriteLine(tokens.ToDelimitedString());
+                    //Console.WriteLine(tokens.ToDelimitedString());
+                    
+                    Parser.Parser parser = new Parser.Parser(tokens);
+                    Node ast = parser.Parse()
+                    Console.WriteLine(ast);
                 }
                 catch(ShorkException e)
                 {

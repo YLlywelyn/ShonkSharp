@@ -32,7 +32,7 @@ namespace ShorkSharp.Parser
         {
             tokenIndex++;
         }
-
-
+        
+        
     }
 }
