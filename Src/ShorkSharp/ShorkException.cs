@@ -65,4 +65,18 @@ namespace ShorkSharp
             : base(startPosition, endPosition, "Invalid Escape Sequence", string.Format("'{0}' is not a valid escape sequence.", theChar))
         { }
     }
+
+    internal class ExpectedCharacterError : Error
+    {
+        public ExpectedCharacterError(Position startPosition, Position endPosition, char expected, char found)
+            : base(startPosition, endPosition, "Expected Character", string.Format("Expected '{0}', found '{1}'.", expected, found))
+        { }
+    }
+
+    internal class SyntaxError : Error
+    {
+        public SyntaxError(Position startPosition, Position endPosition, string details)
+            : base(startPosition, endPosition, "Syntax Error", details)
+        { }
+    }
 }

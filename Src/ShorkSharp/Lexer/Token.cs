@@ -7,50 +7,6 @@ using System.Threading.Tasks;
 
 namespace ShorkSharp.Lexer
 {
-    internal enum TokenType
-    {
-        Unknown,
-
-        INT,    // [0-9]+
-        FLOAT,  // [0-9]+\.[0-9]+
-        STRING, // "[a-zA-Z \t]*"
-
-        PLUS,           // +
-        DOUBLE_PLUS,    // ++
-        MINUS,          // -
-        DOUBLE_MINUS,   // --
-        SLASH,          // /
-        ASTERIX,        // *
-        AMPERSAND,      // &
-        PIPE,           // |
-        CARET,          // ^
-        QMARK,          // ?
-        EXCLAMATION,    // !
-        PERCENTAGE,     // %
-        DOT,            // .
-        COMMA,          // ,
-        SEMICOLON,      // ;
-
-        EQUALS,                 // =
-        DOUBLE_EQUALS,          // ==
-        LESS_THAN_OR_EQUAL,     // <=
-        GREATER_THAN_OR_EQUAL,  // >=
-        EQUALS_ARROW,           // =>
-        NOTEQUAL,               // !=
-
-        AND,    // &&
-        OR,     // ||
-
-        LPAREN, // (
-        RPAREN, // )
-        LBRACE, // {
-        RBRACE, // }
-        LBRACK, // [
-        RBRACK, // ]
-        LANGLE, // <
-        RANGLE, // >
-    }
-
     internal class Token
     {
         public TokenType tokenType { get; protected set; }

@@ -33,13 +33,6 @@ namespace ShorkSharp.Parser
             tokenIndex++;
         }
 
-        public List<Node> MakeNodes()
-        {
-            List<Node> nodes = new List<Node>();
 
-            // TODO: Create a node tree from the token list
-
-            return nodes;
-        }
     }
 }

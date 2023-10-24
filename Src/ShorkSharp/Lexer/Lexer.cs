@@ -5,13 +5,14 @@ using System.Text;
 
 namespace ShorkSharp.Lexer
 {
-    internal class Lexer
+    internal partial class Lexer
     {
         public string text { get; protected set; }
         public Position position { get; protected set; }
 
         public const string WHITESPACE = " \t";
         public const string DIGITS = "0123456789";
+        public const string LETTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
         public Dictionary<char, string> ESCAPE_CHARS = new Dictionary<char, string>()
         {
@@ -51,9 +52,21 @@ namespace ShorkSharp.Lexer
             {
                 char currentChar = (char)this.currentChar;
 
-                // Skip Whitespace thast is not part of another token
+                // Skip Whitespace that is not part of another token
                 if (WHITESPACE.Contains(currentChar))
                 {
+                    Advance();
+                }
+
+                // Skip comment lines
+                else if (currentChar == '#')
+                {
+                    SkipComment();
+                }
+
+                else if (";\n".Contains(currentChar))
+                {
+                    tokens.Add(new Token(TokenType.NEWLINE, position));
                     Advance();
                 }
 
@@ -61,6 +74,11 @@ namespace ShorkSharp.Lexer
                 else if (DIGITS.Contains(currentChar))
                 {
                     tokens.Add(MakeNumber());
+                }
+
+                else if (LETTERS.Contains(currentChar))
+                {
+                    tokens.Add(MakeIdentifier());
                 }
 
                 // Make string tokens
@@ -77,8 +95,7 @@ namespace ShorkSharp.Lexer
                 }
                 else if (currentChar == '-')
                 {
-                    tokens.Add(new Token(TokenType.MINUS, position.Copy()));
-                    Advance();
+                    tokens.Add(MakeMinusOrArrow());
                 }
                 else if (currentChar == '/')
                 {
@@ -90,39 +107,18 @@ namespace ShorkSharp.Lexer
                     tokens.Add(new Token(TokenType.ASTERIX, position.Copy()));
                     Advance();
                 }
-                else if (currentChar == '&')
-                {
-                    tokens.Add(new Token(TokenType.AMPERSAND, position.Copy()));
-                    Advance();
-                }
-                else if (currentChar == '|')
-                {
-                    tokens.Add(new Token(TokenType.PIPE, position.Copy()));
-                    Advance();
-                }
                 else if (currentChar == '^')
                 {
                     tokens.Add(new Token(TokenType.CARET, position.Copy()));
                     Advance();
                 }
-                else if (currentChar == '?')
-                {
-                    tokens.Add(new Token(TokenType.QMARK, position.Copy()));
-                    Advance();
-                }
                 else if (currentChar == '!')
                 {
-                    tokens.Add(new Token(TokenType.EXCLAMATION, position.Copy()));
-                    Advance();
+                    tokens.Add(MakeNotEquals());
                 }
                 else if (currentChar == '%')
                 {
                     tokens.Add(new Token(TokenType.PERCENTAGE, position.Copy()));
-                    Advance();
-                }
-                else if (currentChar == '.')
-                {
-                    tokens.Add(new Token(TokenType.DOT, position.Copy()));
                     Advance();
                 }
                 else if (currentChar == ',')
@@ -130,10 +126,17 @@ namespace ShorkSharp.Lexer
                     tokens.Add(new Token(TokenType.COMMA, position.Copy()));
                     Advance();
                 }
-                else if (currentChar == ';')
+                else if (currentChar == '=')
                 {
-                    tokens.Add(new Token(TokenType.SEMICOLON, position.Copy()));
-                    Advance();
+                    tokens.Add(MakeEquals());
+                }
+                else if (currentChar == '<')
+                {
+                    tokens.Add(MakeLessThan());
+                }
+                else if (currentChar == '>')
+                {
+                    tokens.Add(MakeGreaterThan());
                 }
                 else if (currentChar == '(')
                 {
@@ -165,16 +168,6 @@ namespace ShorkSharp.Lexer
                     tokens.Add(new Token(TokenType.RBRACK, position.Copy()));
                     Advance();
                 }
-                else if (currentChar == '<')
-                {
-                    tokens.Add(new Token(TokenType.LANGLE, position.Copy()));
-                    Advance();
-                }
-                else if (currentChar == '>')
-                {
-                    tokens.Add(new Token(TokenType.RANGLE, position.Copy()));
-                    Advance();
-                }
                 #endregion
 
                 else
@@ -187,6 +180,7 @@ namespace ShorkSharp.Lexer
                 }
             }
 
+            tokens.Add(new Token(TokenType.EOF, position));
             return tokens;
         }
 
@@ -253,6 +247,106 @@ namespace ShorkSharp.Lexer
             }
 
             return new Token(TokenType.STRING, startPosition, text, position.Copy());
+        }
+
+        Token MakeIdentifier()
+        {
+            string id = "";
+            Position startPosition = position.Copy();
+
+            while (currentChar is not null && (LETTERS + DIGITS + "_").Contains((char)currentChar))
+            {
+                id += currentChar;
+                Advance();
+            }
+
+            TokenType ttype = (Keywords.Contains(id)) ? TokenType.KEYWORD : TokenType.IDENTIFIER;
+            return new Token(ttype, startPosition, id, position);
+        }
+
+        Token MakeMinusOrArrow()
+        {
+            TokenType ttype = TokenType.MINUS;
+            Position startPosition = position.Copy();
+            Advance();
+
+            if (currentChar == '>')
+            {
+                Advance();
+                ttype = TokenType.ARROW;
+            }
+
+            return new Token(ttype, startPosition, position);
+        }
+
+        Token MakeNotEquals()
+        {
+            Position startPosition = position.Copy();
+            Advance();
+
+            if (currentChar == '=')
+            {
+                Advance();
+                return new Token(TokenType.NOTEQUAL, startPosition, position);
+            }
+            else
+            {
+                Advance();
+                throw new ShorkException(new ExpectedCharacterError(startPosition, position, '=', (char)currentChar));
+            }
+        }
+
+        Token MakeEquals()
+        {
+            TokenType ttype = TokenType.EQUALS;
+            Position startPosition = position.Copy();
+            Advance();
+
+            if (currentChar == '=')
+            {
+                Advance();
+                ttype = TokenType.DOUBLE_EQUALS;
+            }
+
+            return new Token(ttype, startPosition, position);
+        }
+
+        Token MakeLessThan()
+        {
+            TokenType ttype = TokenType.LESS_THAN;
+            Position startPosition = position.Copy();
+            Advance();
+
+            if (currentChar == '=')
+            {
+                Advance();
+                ttype = TokenType.LESS_THAN_OR_EQUAL;
+            }
+
+            return new Token(ttype, startPosition, position);
+        }
+
+        Token MakeGreaterThan()
+        {
+            TokenType ttype = TokenType.GREATER_THAN;
+            Position startPosition = position.Copy();
+            Advance();
+
+            if (currentChar == '=')
+            {
+                Advance();
+                ttype = TokenType.GREATER_THAN_OR_EQUAL;
+            }
+
+            return new Token(ttype, startPosition, position);
+        }
+
+        void SkipComment()
+        {
+            Advance();
+            while (currentChar != '\n')
+                Advance();
+            Advance();
         }
     }
 }

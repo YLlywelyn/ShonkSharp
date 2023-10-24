@@ -40,4 +40,81 @@ namespace ShorkSharp.Parser
             this.token = token;
         }
     }
+
+    internal class ListNode : Node
+    {
+        public List<Node> elements;
+
+        public ListNode(List<Node> elements, Position startPosition, Position endPosition)
+            : base(startPosition, endPosition)
+        {
+            this.elements = elements;
+        }
+    }
+
+    internal class VarAccessNode : Node
+    {
+        public Token token { get; protected set; }
+
+        public VarAccessNode(Token token)
+            : base(token.startPosition, token.endPosition)
+        {
+            this.token = token;
+        }
+    }
+
+    internal class VarAssignNode : Node
+    {
+        public Token varNameToken { get; protected set; }
+        public Node varValueNode { get; protected set; }
+
+        public VarAssignNode(Token varNameToken, Node varValueNode)
+            : base(varNameToken.startPosition, varValueNode.endPosition)
+        {
+            this.varNameToken = varNameToken;
+            this.varValueNode = varValueNode;
+        }
+    }
+
+    internal class BinOpNode : Node
+    {
+        public Node leftNode { get; protected set; }
+        public Token opToken { get; protected set; }
+        public Node rightNode { get; protected set; }
+
+        public BinOpNode(Node leftNode, Token opToken, Node rightNode)
+            : base(leftNode.startPosition, rightNode.endPosition)
+        {
+            this.leftNode = leftNode;
+            this.opToken = opToken;
+            this.rightNode = rightNode;
+        }
+    }
+
+    internal class UnaryOpNode : Node
+    {
+        public Token opToken {get; protected set; }
+        public Node node { get; protected set; }
+
+        public UnaryOpNode(Token opToken, Node node)
+            : base(opToken.startPosition, node.endPosition)
+        {
+            this.opToken = opToken;
+            this.node = node;
+        }
+    }
+
+    /*
+    internal class IfNode : Node
+    {
+
+    }
+    */
+
+    /*
+    internal class ForNode : Node
+    {
+
+    }
+    */
 }
