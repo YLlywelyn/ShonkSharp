@@ -19,6 +19,8 @@ namespace ShorkSharp.Lexer
             "IF",
             "ELIF",
             "ELSE",
+            
+            "FUN",
 
             "FOR",
             "TO",
