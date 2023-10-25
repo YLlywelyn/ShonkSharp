@@ -1,4 +1,4 @@
-%!TeX Program = XeLatex
+%!TeX Program = LuaLatex
 \documentclass[a4paper,openany,oneside,nodeprecatedcode]{dndbook}
 
 \usepackage[singlelinecheck=false]{caption}
@@ -7,6 +7,8 @@
 \usepackage{shortvrb}
 \usepackage{stfloats}
 \usepackage{multirow}
+
+\usepackage{emoji}
 
 %\captionsetup[table]{labelformat=empty,font={sf,sc,bf,},skip=0pt}
 
@@ -18,7 +20,7 @@
   breaklines=true,
 }
 
-\newcommand{\langname}{Shork\#}
+\newcommand{\langname}{\emoji{shark} Basic}
 
 \title{\langname{}}
 \author{Miss Ylva Llywelyn}
@@ -34,8 +36,8 @@
 
 \mainmatter%
 
-\include{chapters/tokens.tex}
-
 \include{chapters/grammer.tex}
+
+\include{chapters/codelist.tex}
 
 \end{document}
