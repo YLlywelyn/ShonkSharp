@@ -294,15 +294,64 @@ class Parser:
         
         return result.Success(left)
 
+##############
+### VALUES ###
+##############
+
+class Object:
+    def __repr__(self) -> str:
+        return f'{type(self).__name__}'
+
+    def SetPosition(self, startPosition, endPosition:Position = None) -> Object:
+        self.startPosition = startPosition
+        self.endPosition = endPosition
+        return self
+    
+    def SetContext(self, context:Context) -> Object:
+        self.context = context
+        return self
+    
+class Number(Object):
+    pass
+
+###############
+### CONTEXT ###
+###############
+
+class Context:
+	def __init__(self, displayName, parent=None, parentEntryPosition=None):
+		self.displayName = displayName
+		self.parent = parent
+		self.parentEntryPosition = parentEntryPosition
+
 ###################
 ### INTERPRETER ###
 ###################
 
 class Interpreter:
+    @staticmethod
+    def Interpret(rootNode:NodeBase):
+        return Interpreter().Visit(rootNode)
+
     def Visit(self, node:NodeBase):
         methodName = f'Visit{type(node).__name__}'
         method = getattr(self, methodName, self.NoVisit)
         return method(node)
+    
+    def NoVisit(self, node:NodeBase):
+        raise Exception(f'Interpreter.Visit{type(node).__name__} is not defined.')
+    
+    def VisitNumberNode(self, node:NumberNode):
+        print("Found number node!")
+
+    def VisitBinOpNode(self, node:BinOpNode):
+        print("Found bin op node!")
+        self.Visit(node.leftNode)
+        self.Visit(node.rightNode)
+    
+    def VisitUnaryOpNode(self, node:UnaryOpNode):
+        print("Found unary op node!")
+        self.Visit(node.node)
 
 ###########
 ### RUN ###
@@ -312,8 +361,7 @@ def Run(text:str, filename:str) -> None:
     try:
         tokens: list[Token] = Lexer.Lex(text, filename)
         rootNode: NodeBase = Parser.Parse(tokens).node
-
-        print(rootNode)
+        Interpreter.Interpret(rootNode)
     except ShorkError as e:
         print(f'{e}')
 
