@@ -35,6 +35,16 @@ class InvalidSyntaxError(ShorkError):
     def __init__(self, startPosition: Position, endPosition: Position, details: str) -> None:
         super().__init__(startPosition, endPosition, "Invalid Syntax", details)
 
+class NotImplementedError(ShorkError):
+    def __init__(self, startPosition: Position, endPosition: Position, details: str) -> None:
+        super().__init__(startPosition, endPosition, "Not Implemented", details)
+    def __repr__(self) -> str:
+        return f'Not Implemented Error: <{self.details}> is not implemented.'
+
+class RuntimeError(ShorkError):
+    def __init__(self, startPosition: Position, endPosition: Position, details: str) -> None:
+        super().__init__(startPosition, endPosition, "Runtime Error", details)
+
 ################
 ### POSITION ###
 ################
@@ -228,8 +238,8 @@ class ParseResult:
 
 class Parser:
     @staticmethod
-    def Parse(tokens: list[Token]) -> ParseResult:
-        return Parser(tokens).DoParse()
+    def Parse(tokens: list[Token]) -> NodeBase:
+        return Parser(tokens).DoParse().node
 
 
     def __init__(self, tokens: list[Token]) -> None:
@@ -294,13 +304,34 @@ class Parser:
         
         return result.Success(left)
 
+######################
+### RUNTIME RESULT ###
+######################
+
+class RuntimeResult:
+    def __init__(self) -> None:
+        self.value:Object = None
+    
+    def Register(self, result:RuntimeResult) -> Object:
+        return result.value
+    
+    def Success(self, value:Object) -> RuntimeResult:
+        self.value = value
+        return self
+    
+    def Failure(self, error:ShorkError) -> None:
+        raise error
+
 ##############
 ### VALUES ###
 ##############
 
 class Object:
+    def __init__(self, value:any) -> None:
+        self.value = value
+
     def __repr__(self) -> str:
-        return f'{type(self).__name__}'
+        return f'{self.value}'
 
     def SetPosition(self, startPosition, endPosition:Position = None) -> Object:
         self.startPosition = startPosition
@@ -311,8 +342,43 @@ class Object:
         self.context = context
         return self
     
+    def AddTo(self, other:Object) -> Object:
+        raise NotImplementedError(None, None, f"{type(self).__name__}.AddTo")
+    
+    def SubFrom(self, other:Object) -> Object:
+        raise NotImplementedError(None, None, f"{type(self).__name__}.SubFrom")
+    
+    def MultiplyBy(self, other:Object) -> Object:
+        raise NotImplementedError(None, None, f"{type(self).__name__}.MultiplyBy")
+    
+    def DivideBy(self, other:Object) -> Object:
+        raise NotImplementedError(None, None, f"{type(self).__name__}.DivideBy")
+    
 class Number(Object):
-    pass
+    def __init__(self, value: int|float) -> None:
+        super().__init__(value)
+    
+    def AddTo(self, other: Object) -> Object:
+        match type(other):
+            case Number:
+                return Number(self.value + other.value).SetContext(self.context)
+    
+    def SubFrom(self, other: Object) -> Object:
+        match type(other):
+            case Number:
+                return Number(self.value - other.value).SetContext(self.context)
+    
+    def MultiplyBy(self, other: Object) -> Object:
+        match type(other):
+            case Number:
+                return Number(self.value * other.value).SetContext(self.context)
+    
+    def DivideBy(self, other: Object) -> Object:
+        match type(other):
+            case Number:
+                if other.value == 0:
+                    raise RuntimeError(other.startPosition, other.endPosition, "Cannot divide by zero")
+                return Number(self.value * other.value).SetContext(self.context)
 
 ###############
 ### CONTEXT ###
@@ -339,7 +405,7 @@ class Interpreter:
         return method(node)
     
     def NoVisit(self, node:NodeBase):
-        raise Exception(f'Interpreter.Visit{type(node).__name__} is not defined.')
+        raise NotImplementedError(f'Interpreter.Visit{type(node).__name__}')
     
     def VisitNumberNode(self, node:NumberNode):
         print("Found number node!")
@@ -359,9 +425,7 @@ class Interpreter:
 
 def Run(text:str, filename:str) -> None:
     try:
-        tokens: list[Token] = Lexer.Lex(text, filename)
-        rootNode: NodeBase = Parser.Parse(tokens).node
-        Interpreter.Interpret(rootNode)
+        Interpreter.Interpret(Parser.Parse(Lexer.Lex(text, filename)))
     except ShorkError as e:
         print(f'{e}')
 
