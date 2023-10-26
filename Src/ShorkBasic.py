@@ -74,19 +74,21 @@ class Position:
 ### TOKENS ###
 ##############
 
-class TokenType(Enum):
-    INT         = 1
-    FLOAT       = 2
+TokenType = Enum('TokenType', [
+    'INT',
+    'FLOAT',
 
-    PLUS        = 4
-    MINUS       = 8
-    MULTIPLY    = 16
-    DIVIDE      = 32
+    'PLUS',
+    'MINUS',
+    'MULTIPLY',
+    'DIVIDE',
+    'POWER',
 
-    LPAREN      = 64
-    RPAREN      = 128
+    'LPAREN',
+    'RPAREN',
 
-    EOF         = 256
+    'EOF'
+])
 
 class Token:
     def __init__(self, tokenType:TokenType, value:any = None, startPosition:Position = None, endPosition:Position = None) -> None:
@@ -146,6 +148,9 @@ class Lexer:
             elif self.currentChar == '/':
                 tokens.append(Token(TokenType.DIVIDE, startPosition=self.position))
                 self.Advance()
+            elif self.currentChar == '^':
+                tokens.append(Token(TokenType.POWER, startPosition=self.position))
+                self.Advance()
             elif self.currentChar == '(':
                 tokens.append(Token(TokenType.LPAREN, startPosition=self.position))
                 self.Advance()
@@ -186,10 +191,13 @@ class Lexer:
 #############
 
 class NodeBase:
-    pass
+    def __init__(self, startPosition:Position, endPosition:Position) -> None:
+        self.startPosition = startPosition
+        self.endPosition = endPosition
 
 class NumberNode(NodeBase):
     def __init__(self, numberToken:Token) -> None:
+        super().__init__(numberToken.startPosition, numberToken.endPosition)
         self.numberToken = numberToken
     
     def __repr__(self) -> str:
@@ -197,6 +205,7 @@ class NumberNode(NodeBase):
 
 class BinOpNode(NodeBase):
     def __init__(self, leftNode:NodeBase,  opToken:Token, rightNode:NodeBase) -> None:
+        super().__init__(leftNode.startPosition, rightNode.endPosition)
         self.leftNode = leftNode
         self.opToken = opToken
         self.rightNode = rightNode
@@ -206,6 +215,7 @@ class BinOpNode(NodeBase):
 
 class UnaryOpNode(NodeBase):
     def __init__(self, opToken:Token, node:NodeBase) -> None:
+        super().__init__(opToken.startPosition, node.endPosition)
         self.opToken = opToken
         self.node = node
     
@@ -259,17 +269,12 @@ class Parser:
             result.Failure(InvalidSyntaxError(self.currentToken.startPosition, self.currentToken.endPosition, "Expected '+', '-', '*' or '/'"))
         return result
     
-
-    def ParseFactor(self) -> ParseResult:
+    
+    def ParseAtom(self):
         result = ParseResult()
         token:Token = self.currentToken
-
-        if token.tokenType in (TokenType.PLUS, TokenType.MINUS):
-            result.Register(self.Advance())
-            factor = result.Register(self.ParseFactor())
-            return result.Success(UnaryOpNode(token, factor))
         
-        elif token.tokenType in (TokenType.INT, TokenType.FLOAT):
+        if token.tokenType in (TokenType.INT, TokenType.FLOAT):
             result.Register(self.Advance())
             return result.Success(NumberNode(token))
         
@@ -282,7 +287,21 @@ class Parser:
             else:
                 result.Failure(InvalidSyntaxError(self.currentToken.startPosition, self.currentToken.endPosition, "Expected ')'"))
         
-        result.Failure(InvalidSyntaxError(token.startPosition, token.endPosition, "Expected int or float"))
+        result.Failure(InvalidSyntaxError(self.currentToken.startPosition, self.currentToken.endPosition, "Expected int, float, '+', '-' or ')'"))
+
+    def ParsePower(self):
+        return self.ParseBinOp(self.ParseAtom, (TokenType.POWER, ), self.ParseFactor)
+
+    def ParseFactor(self) -> ParseResult:
+        result = ParseResult()
+        token:Token = self.currentToken
+
+        if token.tokenType in (TokenType.PLUS, TokenType.MINUS):
+            result.Register(self.Advance())
+            factor = result.Register(self.ParseFactor())
+            return result.Success(UnaryOpNode(token, factor))
+        
+        return self.ParsePower()
     
     def ParseTerm(self) -> ParseResult:
         return self.ParseBinOp(self.ParseFactor, (TokenType.MULTIPLY, TokenType.DIVIDE))
@@ -291,14 +310,17 @@ class Parser:
         return self.ParseBinOp(self.ParseTerm, (TokenType.PLUS, TokenType.MINUS))
 
 
-    def ParseBinOp(self, func, ops) -> ParseResult:
+    def ParseBinOp(self, leftFunc, ops, rightFunc = None) -> ParseResult:
+        if rightFunc == None:
+            rightFunc = leftFunc
+
         result = ParseResult()
-        left = result.Register(func())
+        left = result.Register(leftFunc())
 
         while self.currentToken.tokenType in ops:
             opToken = self.currentToken
             result.Register(self.Advance())
-            right = result.Register(func())
+            right = result.Register(rightFunc())
             
             left = BinOpNode(left, opToken, right)
         
@@ -354,31 +376,49 @@ class Object:
     def DivideBy(self, other:Object) -> Object:
         raise NotImplementedError(None, None, f"{type(self).__name__}.DivideBy")
     
+    def ToPowerOf(self, other:Object) -> Object:
+        raise NotImplementedError(None, None, f"{type(self).__name__}.ToPowerOf")
+    
 class Number(Object):
     def __init__(self, value: int|float) -> None:
         super().__init__(value)
     
     def AddTo(self, other: Object) -> Object:
-        match type(other):
-            case Number:
+        match other:
+            case Number():
                 return Number(self.value + other.value).SetContext(self.context)
+            case _:
+                raise RuntimeError(self.startPosition, self.endPosition, f"Cannot use the '+' operator on objects of type 'Number' and '{type(other).__name__}'")
     
     def SubFrom(self, other: Object) -> Object:
-        match type(other):
-            case Number:
+        match other:
+            case Number():
                 return Number(self.value - other.value).SetContext(self.context)
+            case _:
+                raise RuntimeError(self.startPosition, self.endPosition, f"Cannot use the '-' operator on objects of type 'Number' and '{type(other).__name__}'")
     
     def MultiplyBy(self, other: Object) -> Object:
-        match type(other):
-            case Number:
+        match other:
+            case Number():
                 return Number(self.value * other.value).SetContext(self.context)
+            case _:
+                raise RuntimeError(self.startPosition, self.endPosition, f"Cannot use the '*' operator on objects of type 'Number' and '{type(other).__name__}'")
     
     def DivideBy(self, other: Object) -> Object:
-        match type(other):
-            case Number:
+        match other:
+            case Number():
                 if other.value == 0:
                     raise RuntimeError(other.startPosition, other.endPosition, "Cannot divide by zero")
                 return Number(self.value * other.value).SetContext(self.context)
+            case _:
+                raise RuntimeError(self.startPosition, self.endPosition, f"Cannot use the '/' operator on objects of type 'Number' and '{type(other).__name__}'")
+    
+    def ToPowerOf(self, other: Object) -> Object:
+        match other:
+            case Number():
+                return Number(self.value ** other.value).SetContext(self.context)
+            case _:
+                raise RuntimeError(self.startPosition, self.endPosition, f"Cannot use the '^' operator on objects of type 'Number' and '{type(other).__name__}'")
 
 ###############
 ### CONTEXT ###
@@ -396,28 +436,48 @@ class Context:
 
 class Interpreter:
     @staticmethod
-    def Interpret(rootNode:NodeBase):
-        return Interpreter().Visit(rootNode)
+    def Interpret(rootNode:NodeBase, context:Context) -> Object:
+        return Interpreter().Visit(rootNode, context).value
 
-    def Visit(self, node:NodeBase):
+    def Visit(self, node:NodeBase, context:Context):
         methodName = f'Visit{type(node).__name__}'
         method = getattr(self, methodName, self.NoVisit)
-        return method(node)
+        return method(node, context)
     
-    def NoVisit(self, node:NodeBase):
+    def NoVisit(self, node:NodeBase, context:Context):
         raise NotImplementedError(f'Interpreter.Visit{type(node).__name__}')
     
-    def VisitNumberNode(self, node:NumberNode):
-        print("Found number node!")
+    def VisitNumberNode(self, node:NumberNode, context:Context):
+        return RuntimeResult().Success(Number(node.numberToken.value).SetContext(context).SetPosition(node.startPosition, node.endPosition))
 
-    def VisitBinOpNode(self, node:BinOpNode):
-        print("Found bin op node!")
-        self.Visit(node.leftNode)
-        self.Visit(node.rightNode)
+    def VisitBinOpNode(self, node:BinOpNode, context:Context):
+        result = RuntimeResult()
+        left:Object = result.Register(self.Visit(node.leftNode, context))
+        right:Object = result.Register(self.Visit(node.rightNode, context))
+
+        match node.opToken.tokenType:
+            case TokenType.PLUS:
+                return result.Success(left.AddTo(right).SetPosition(node.startPosition, node.endPosition))
+            case TokenType.MINUS:
+                return result.Success(left.SubFrom(right).SetPosition(node.startPosition, node.endPosition))
+            case TokenType.MULTIPLY:
+                return result.Success(left.MultiplyBy(right).SetPosition(node.startPosition, node.endPosition))
+            case TokenType.DIVIDE:
+                return result.Success(left.DivideBy(right).SetPosition(node.startPosition, node.endPosition))
+            case TokenType.POWER:
+                return result.Success(left.ToPowerOf(right).SetPosition(node.startPosition, node.endPosition))
     
-    def VisitUnaryOpNode(self, node:UnaryOpNode):
-        print("Found unary op node!")
-        self.Visit(node.node)
+    def VisitUnaryOpNode(self, node:UnaryOpNode, context:Context):
+        result = RuntimeResult()
+        object:Object = result.Register(self.Visit(node.node, context))
+
+        match object:
+            case Number():
+                if node.opToken.tokenType == TokenType.MINUS:
+                    return result.Success(object.MultiplyBy(Number(-1)).SetPosition(node.startPosition, node.endPosition))
+            case _:
+                raise RuntimeError(node.startPosition, node.endPosition,
+                                   f"Unary operation '{node.opToken.tokenType}' not defined for objects of type {type(object).__name__}")
 
 ###########
 ### RUN ###
@@ -425,9 +485,12 @@ class Interpreter:
 
 def Run(text:str, filename:str) -> None:
     try:
-        Interpreter.Interpret(Parser.Parse(Lexer.Lex(text, filename)))
+        tokens = Lexer.Lex(text, filename)
+        nodes = Parser.Parse(tokens)
+        result = Interpreter.Interpret(nodes, Context("<program>"))
+        print(result)
     except ShorkError as e:
-        print(f'{e}')
+        print(e.__repr__())
 
 def __SignalHandler(sig, frame):
     sys.exit(0)
