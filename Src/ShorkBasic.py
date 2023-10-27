@@ -3,7 +3,7 @@
 ###############
 
 from __future__ import annotations
-import sys, signal
+import sys, signal, string
 from enum import Enum
 
 #################
@@ -11,6 +11,11 @@ from enum import Enum
 #################
 
 DIGITS = '1234567890'
+LETTERS = string.ascii_letters
+
+KEYWORDS = [
+    'VAR'
+]
 
 ##############
 ### ERRORS ###
@@ -23,6 +28,8 @@ class ShorkError(Exception):
         self.errorName = errorName
         self.details = details
     
+    def __str__(self) -> str:
+        return self.__repr__()
     def __repr__(self) -> str:
         return f"""{self.errorName}: {self.details}
 File: {self.startPosition.filename}, Line {self.startPosition.line}"""
@@ -42,8 +49,9 @@ class NotImplementedError(ShorkError):
         return f'Not Implemented Error: <{self.details}> is not implemented.'
 
 class RuntimeError(ShorkError):
-    def __init__(self, startPosition: Position, endPosition: Position, details: str) -> None:
+    def __init__(self, startPosition: Position, endPosition: Position, details: str, context:Context) -> None:
         super().__init__(startPosition, endPosition, "Runtime Error", details)
+        self.context = context
 
 ################
 ### POSITION ###
@@ -83,6 +91,10 @@ TokenType = Enum('TokenType', [
     'MULTIPLY',
     'DIVIDE',
     'POWER',
+    'EQUALS',
+
+    'IDENTIFIER',
+    'KEYWORD',
 
     'LPAREN',
     'RPAREN',
@@ -94,6 +106,8 @@ class Token:
     def __init__(self, tokenType:TokenType, value:any = None, startPosition:Position = None, endPosition:Position = None) -> None:
         self.tokenType = tokenType
         self.value = value
+        self.startPosition:Position = None
+        self.endPosition:Position = None
 
         if startPosition:
             self.startPosition = startPosition.Copy()
@@ -106,6 +120,9 @@ class Token:
     def __repr__(self) -> str:
         if self.value: return f'{self.tokenType}:{self.value}'
         else: return f'{self.tokenType}'
+    
+    def Matches(self, tokenType:TokenType, value:any) -> bool:
+        return (self.tokenType == tokenType) and (self.value == value)
 
 #############
 ### LEXER ###
@@ -136,6 +153,9 @@ class Lexer:
             elif self.currentChar in DIGITS:
                 tokens.append(self.MakeNumber())
             
+            elif self.currentChar in LETTERS:
+                tokens.append(self.MakeIdentifier())
+            
             elif self.currentChar == '+':
                 tokens.append(Token(TokenType.PLUS, startPosition=self.position))
                 self.Advance()
@@ -151,6 +171,9 @@ class Lexer:
             elif self.currentChar == '^':
                 tokens.append(Token(TokenType.POWER, startPosition=self.position))
                 self.Advance()
+            elif self.currentChar == '=':
+                tokens.append(Token(TokenType.EQUALS, startPosition=self.position))
+                self.Advance()
             elif self.currentChar == '(':
                 tokens.append(Token(TokenType.LPAREN, startPosition=self.position))
                 self.Advance()
@@ -164,7 +187,7 @@ class Lexer:
                 self.Advance()
                 raise IllegalCharacterError(startPosition, self.position, f"'{char}'")
 
-        tokens.append(Token(TokenType.EOF))
+        tokens.append(Token(TokenType.EOF, startPosition=self.position))
         return tokens
     
     def MakeNumber(self) -> Token:
@@ -185,6 +208,17 @@ class Lexer:
             return Token(TokenType.INT, int(numString), startPosition, self.position)
         else:
             return Token(TokenType.FLOAT, float(numString), startPosition, self.position)
+    
+    def MakeIdentifier(self) -> Token:
+        id = ""
+        startPosition = self.position.Copy()
+
+        while self.currentChar != None and self.currentChar in LETTERS+DIGITS+"_":
+            id += self.currentChar
+            self.Advance()
+        
+        tType = TokenType.KEYWORD if id in KEYWORDS else TokenType.IDENTIFIER
+        return Token(tType, id, startPosition, self.position)
 
 #############
 ### NODES ###
@@ -222,6 +256,18 @@ class UnaryOpNode(NodeBase):
     def __repr__(self) -> str:
         return f'({self.opToken}, {self.node})'
 
+class VarAssignNode(NodeBase):
+    def __init__(self, varNameToken:Token, valueNode:NodeBase) -> None:
+        if isinstance(valueNode, ParseResult): valueNode = valueNode.node
+        super().__init__(varNameToken.startPosition, valueNode.endPosition)
+        self.varNameToken = varNameToken
+        self.valueNode = valueNode
+
+class VarAccessNode(NodeBase):
+    def __init__(self, varNameToken:Token) -> None:
+        super().__init__(varNameToken.startPosition, varNameToken.endPosition)
+        self.varNameToken = varNameToken
+
 ####################
 ### PARSE RESULT ###
 ####################
@@ -229,11 +275,16 @@ class UnaryOpNode(NodeBase):
 class ParseResult:
     def __init__(self) -> None:
         self.node = None
+        self.advanceCount = 0
     
-    def Register(self, result:ParseResult) -> NodeBase:
-        if isinstance(result, ParseResult):
+    def Register(self, result:ParseResult|NodeBase) -> NodeBase:
+        if isinstance(result , ParseResult):
             return result.node
-        return result
+        else:
+            return result
+    
+    def RegisterAdvancement(self):
+        self.advanceCount += 1
     
     def Success(self, node:NodeBase) -> ParseResult:
         self.node = node
@@ -278,6 +329,10 @@ class Parser:
             result.Register(self.Advance())
             return result.Success(NumberNode(token))
         
+        elif token.tokenType == TokenType.IDENTIFIER:
+            result.Register(self.Advance())
+            return result.Success(VarAccessNode(token))
+        
         elif token.tokenType == TokenType.LPAREN:
             result.Register(self.Advance())
             expression = result.Register(self.ParseExpression())
@@ -292,7 +347,7 @@ class Parser:
     def ParsePower(self):
         return self.ParseBinOp(self.ParseAtom, (TokenType.POWER, ), self.ParseFactor)
 
-    def ParseFactor(self) -> ParseResult:
+    def ParseFactor(self):
         result = ParseResult()
         token:Token = self.currentToken
 
@@ -303,11 +358,32 @@ class Parser:
         
         return self.ParsePower()
     
-    def ParseTerm(self) -> ParseResult:
+    def ParseTerm(self):
         return self.ParseBinOp(self.ParseFactor, (TokenType.MULTIPLY, TokenType.DIVIDE))
     
-    def ParseExpression(self) -> ParseResult:
-        return self.ParseBinOp(self.ParseTerm, (TokenType.PLUS, TokenType.MINUS))
+    def ParseExpression(self):
+        result = ParseResult()
+
+        if self.currentToken.Matches(TokenType.KEYWORD, 'VAR'):
+            result.Register(self.Advance())
+
+            if self.currentToken.tokenType != TokenType.IDENTIFIER:
+                result.Failure(InvalidSyntaxError(self.currentToken.startPosition, self.currentToken.endPosition,
+                                                  "Expected identifier"))
+            
+            varName = self.currentToken
+            result.Register(self.Advance())
+
+            if self.currentToken.tokenType != TokenType.EQUALS:
+                result.Failure(InvalidSyntaxError(self.currentToken.startPosition, self.currentToken.endPosition,
+                                                  "Expected '='"))
+            
+            result.Register(self.Advance())
+            expression = result.Register(self.ParseExpression())
+
+            return result.Success(VarAssignNode(varName, expression))
+        
+        return result.Success(self.ParseBinOp(self.ParseTerm, (TokenType.PLUS, TokenType.MINUS)))
 
 
     def ParseBinOp(self, leftFunc, ops, rightFunc = None) -> ParseResult:
@@ -425,10 +501,32 @@ class Number(Object):
 ###############
 
 class Context:
-	def __init__(self, displayName, parent=None, parentEntryPosition=None):
-		self.displayName = displayName
-		self.parent = parent
-		self.parentEntryPosition = parentEntryPosition
+    def __init__(self, displayName, symbolTable:SymbolTable=None, parent=None, parentEntryPosition=None):
+        self.displayName = displayName
+        self.parent = parent
+        self.parentEntryPosition = parentEntryPosition
+        self.symbolTable:SymbolTable = None
+
+####################
+### SYMBOL TABLE ###
+####################
+
+class SymbolTable:
+    def __init__(self) -> None:
+        self.symbols = {}
+        self.parent:SymbolTable = None
+    
+    def Get(self, name):
+        value = self.symbols.get(name, None)
+        if value == None and self.parent:
+            return self.parent.Get(name)
+        return value
+    
+    def Set(self, name, value):
+        self.symbols[name] = value
+
+    def Remove(self, name):
+        del self.symbols[name]
 
 ###################
 ### INTERPRETER ###
@@ -440,12 +538,16 @@ class Interpreter:
         return Interpreter().Visit(rootNode, context).value
 
     def Visit(self, node:NodeBase, context:Context):
+        if not isinstance(node, NodeBase):
+            raise TypeError(f"Expected 'NodeBase', recieved '{type(node).__name__}'")
+
         methodName = f'Visit{type(node).__name__}'
         method = getattr(self, methodName, self.NoVisit)
         return method(node, context)
     
     def NoVisit(self, node:NodeBase, context:Context):
-        raise NotImplementedError(f'Interpreter.Visit{type(node).__name__}')
+        raise NotImplementedError(node.startPosition, node.endPosition,
+                                  f'Interpreter.Visit{type(node).__name__}')
     
     def VisitNumberNode(self, node:NumberNode, context:Context):
         return RuntimeResult().Success(Number(node.numberToken.value).SetContext(context).SetPosition(node.startPosition, node.endPosition))
@@ -478,6 +580,28 @@ class Interpreter:
             case _:
                 raise RuntimeError(node.startPosition, node.endPosition,
                                    f"Unary operation '{node.opToken.tokenType}' not defined for objects of type {type(object).__name__}")
+    
+    def VisitVarAssignNode(self, node:VarAssignNode, context:Context):
+        result = RuntimeResult()
+        varName = node.varNameToken.value
+        value = result.Register(self.Visit(node.valueNode, context))
+        context.symbolTable.Set(varName, value)
+        return result.Success(value)
+    
+    def VisitVarAccessNode(self, node:VarAccessNode, context:Context):
+        result = RuntimeResult()
+        varName = node.varNameToken.value
+        value = context.symbolTable.Get(varName)
+
+        if not value:
+            result.Failure(RuntimeError(node.startPosition, node.endPosition, f"'{varName}' is not defined", context))
+
+######################
+### GLOBAL SYMBOLS ###
+######################
+
+GLOBAL_SYMBOL_TABLE = SymbolTable()
+GLOBAL_SYMBOL_TABLE.Set("null", Number(0))
 
 ###########
 ### RUN ###
@@ -486,11 +610,15 @@ class Interpreter:
 def Run(text:str, filename:str) -> None:
     try:
         tokens = Lexer.Lex(text, filename)
+
         nodes = Parser.Parse(tokens)
-        result = Interpreter.Interpret(nodes, Context("<program>"))
+        
+        context = Context("<program>", symbolTable=GLOBAL_SYMBOL_TABLE)
+        result = Interpreter.Interpret(nodes, context)
+        
         print(result)
     except ShorkError as e:
-        print(e.__repr__())
+        print(e)
 
 def __SignalHandler(sig, frame):
     sys.exit(0)
